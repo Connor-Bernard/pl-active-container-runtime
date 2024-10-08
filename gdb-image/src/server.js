@@ -164,6 +164,36 @@ let term;
 
 const spawn_terminal = () => {
   term_output = '';
+  
+  const compile = pty.spawn('gcc', ['-g', '-o', 'pwd_checker', 'test_pwd_checker.c', 'pwd_checker.c'], {
+    cwd: options['working-dir'],
+    env: Object.assign({}, default_env, process.env),
+  });
+
+  compile.on('exit', (exitCode) => {
+    if (exitCode === 0) {
+      console.log('Compilation successful');
+      startGDB();
+    } else {
+      console.error('Compilation failed');
+      Object.values(websockets).forEach((ws) => {
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'output', data: 'Compilation failed. Please check your source files.\r\n' }));
+        }
+      });
+    }
+  });
+
+  compile.on('data', (data) => {
+    Object.values(websockets).forEach((ws) => {
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'output', data: data }));
+      }
+    });
+  });
+};
+
+const startGDB = () => {
   term = pty.spawn('gdb', [], {
     name: 'xterm-color',
     cols: 80,
@@ -207,6 +237,7 @@ const spawn_terminal = () => {
     spawn_terminal();
   });
 };
+
 spawn_terminal();
 
 app.ws('/', (ws, req) => {
