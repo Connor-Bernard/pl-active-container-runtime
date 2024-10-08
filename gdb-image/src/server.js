@@ -4,6 +4,7 @@ const pty = require('node-pty');
 const path = require('path');
 const cl_args = require('command-line-args');
 const cl_usage = require('command-line-usage');
+const fs = require('fs').promises;
 
 const app = express();
 express_ws(app);
@@ -162,12 +163,50 @@ let ws_id = 0;
 let term_output = '';
 let term;
 
-const spawn_terminal = () => {
+const waitForFiles = async (files, maxWaitTime = 60000, checkInterval = 1000) => {
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWaitTime) {
+    const fileExists = await Promise.all(
+      files.map(file => fs.access(path.join(options['working-dir'], file))
+        .then(() => true)
+        .catch(() => false)
+      )
+    );
+    if (fileExists.every(exists => exists)) {
+      return true;
+    }
+    await new Promise(resolve => setTimeout(resolve, checkInterval));
+  }
+  return false;
+};
+
+const spawn_terminal = async () => {
   term_output = '';
   
+  const filesToWait = ['test_pwd_checker.c', 'pwd_checker.c'];
+  const filesExist = await waitForFiles(filesToWait);
+  
+  if (!filesExist) {
+    console.error('Required files not found after waiting');
+    Object.values(websockets).forEach((ws) => {
+      ws.send(JSON.stringify({
+        type: 'compilation-error',
+        message: 'Required files not found',
+        output: 'The necessary source files were not found in the working directory.'
+      }));
+    });
+    return;
+  }
+
   const compile = pty.spawn('gcc', ['-g', '-o', 'pwd_checker', 'test_pwd_checker.c', 'pwd_checker.c'], {
     cwd: options['working-dir'],
     env: Object.assign({}, default_env, process.env),
+  });
+
+  let compileOutput = '';
+
+  compile.on('data', (data) => {
+    compileOutput += data.toString();
   });
 
   compile.on('exit', (exitCode) => {
@@ -175,11 +214,16 @@ const spawn_terminal = () => {
       console.log('Compilation successful');
       startGDB();
     } else {
-      console.error('Compilation failed');
+      console.error('Compilation failed with exit code:', exitCode);
+      console.error('Compilation output:', compileOutput);
+      
       Object.values(websockets).forEach((ws) => {
-        if (ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'output', data: 'Compilation failed. Please check your source files.\r\n' }));
-        }
+        ws.send(JSON.stringify({
+          type: 'compilation-error',
+          message: 'Compilation failed',
+          exitCode: exitCode,
+          output: compileOutput
+        }));
       });
     }
   });
@@ -238,7 +282,11 @@ const startGDB = () => {
   });
 };
 
-spawn_terminal();
+const init = async () => {
+  await spawn_terminal();
+};
+
+init();
 
 app.ws('/', (ws, req) => {
   const id = ws_id++;

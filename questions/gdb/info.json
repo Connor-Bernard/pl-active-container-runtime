@@ -1,0 +1,16 @@
+{
+  "uuid": "8b4891d6-64d1-4e89-b72d-ad2133f25b2f",
+  "title": "GDB",
+  "topic": "Template",
+  "tags": ["formative"],
+  "type": "v3",
+  "singleVariant": true,
+  "workspaceOptions": {
+    "comment": { "why": "testing comments in workspace blocks", 
+      "also": "testing object comments" },
+    "image": "gdb-service",
+    "port": 8080,
+    "home": "/home/student",
+    "gradedFiles": ["**/*.h", "**/*.c"]
+  }
+}

@@ -12,3 +12,11 @@ services:
       - HOST_JOBS_DIR=${HOME}/pl_ag_jobs
     extra_hosts:
       - "host.docker.internal:172.17.0.1"
+    depends_on:
+      - gdb-service
+
+  gdb-service:
+    build:
+      context: ./gdb-image
+      dockerfile: Dockerfile
+    image: gdb-service:latest
