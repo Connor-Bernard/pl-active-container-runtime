@@ -236,7 +236,7 @@ const spawn_terminal = async () => {
 };
 
 const startGDB = () => {
-  term = pty.spawn('gdb', [], {
+  term = pty.spawn('gdb', ['./pwd_checker'], {
     name: 'xterm-color',
     cols: 80,
     rows: 24,
@@ -244,14 +244,10 @@ const startGDB = () => {
     env: Object.assign({}, default_env, process.env),
   });
   
-  term.write('file ./pwd_checker\n');
-  
-  setTimeout(() => {
-    term.write('set prompt (gdb) \n');
-    term.write('show prompt\n');
-  }, 500);
+  console.log('GDB started');
 
   term.on('data', function (data) {
+    console.log('Received data from GDB:', data);
     term_output += data;
     Object.values(websockets).forEach((ws) => {
       if (ws.readyState === 1) {
@@ -302,6 +298,7 @@ app.ws('/', (ws, req) => {
   ws.on('message', (msg) => {
     const val = JSON.parse(msg);
     if (val.event === 'data') {
+      console.log('Received data from client:', val.value);
       term.write(val.value);
     } else if (val.event === 'resize') {
       term.resize(val.value.cols, val.value.rows);

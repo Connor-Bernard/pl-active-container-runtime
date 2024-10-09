@@ -54,7 +54,6 @@
 
   <div class="flex justify-center items-center space-x-4 py-4">
     <div id="mission-list" class="flex items-center space-x-6">
-      <!-- Mission steps will be dynamically inserted here -->
     </div>
   </div>
 
@@ -82,7 +81,7 @@
   <script src="xterm-fit/lib/xterm-addon-fit.js"></script>
   <script>
     const term = new Terminal({
-      fontSize: 14,
+      fontSize: 20,
       fontFamily: '"Fira Code", monospace',
       theme: {
         background: '#1a1a1a',
@@ -96,9 +95,13 @@
     term.open(document.getElementById('terminal-container'));
     fit.fit();
 
+    // 直接在前端添加初始的 (gdb) 提示符
+    term.write('(gdb) ');
+
     const socket = new WebSocket(`ws://${window.location.host}${window.location.pathname}`);
     let missions = [];
     let currentMission = 0;
+    let firstOutputReceived = false;
 
     function updateMissionList() {
       const missionList = document.getElementById('mission-list');
@@ -133,7 +136,9 @@
     }
 
     socket.onopen = () => {
+      console.log('WebSocket connection established');
       term.onData((data) => {
+        console.log('Sending data to server:', data);
         socket.send(JSON.stringify({ event: 'data', value: data }));
       });
       term.onResize(() => {
@@ -145,9 +150,16 @@
 
     socket.onmessage = (ev) => {
       const message = JSON.parse(ev.data);
+      console.log('Received message from server:', message);
       switch (message.type) {
         case 'output':
-          term.write(message.data);
+          console.log('Writing to terminal:', message.data);
+          if (!firstOutputReceived) {
+            firstOutputReceived = true;
+            // 跳过第一次的输出，因为我们已经手动添加了 (gdb) 提示符
+          } else {
+            term.write(message.data);
+          }
           break;
         case 'init':
           missions = message.missions;
