@@ -1,62 +1,124 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adventure Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="xterm/css/xterm.css" />
-  <script src="xterm/lib/xterm.js"></script>
-  <script src="xterm-fit/lib/xterm-addon-fit.js"></script>
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
+    .xterm-viewport::-webkit-scrollbar {
+      width: 10px;
     }
 
-    #banner {
-      padding: 10px;
-      background-color: #f0f0f0;
-      border-bottom: 1px solid #ccc;
-      white-space: pre-wrap;
-      font-family: monospace;
-      max-height: 200px;
-      overflow-y: auto;
+    .xterm-viewport::-webkit-scrollbar-track {
+      background: #f1f1f1;
     }
 
-    #mission-container {
-      padding: 10px;
-      background-color: #e0e0e0;
-      border-bottom: 1px solid #ccc;
+    .xterm-viewport::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 5px;
     }
 
-    #terminal-container {
-      flex-grow: 1;
-    }
-
-    #mission-description {
-      margin-top: 10px;
-      font-style: italic;
+    .xterm-viewport::-webkit-scrollbar-thumb:hover {
+      background: #555;
     }
   </style>
 </head>
 
-<body>
-  <div id="banner"></div>
-  <div id="mission-container">
-    <h3>Current Mission: <span id="mission-number"></span></h3>
-    <p id="mission-instruction"></p>
-    <p id="mission-description"></p>
+<body class="bg-gray-100 h-screen flex flex-col">
+  <header class="bg-blue-600 text-white p-4">
+    <h1 class="text-2xl font-bold">Adventure Terminal</h1>
+  </header>
+
+  <div class="flex-grow flex flex-col overflow-hidden">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+        <nav class="flex" aria-label="Progress">
+          <ol id="mission-list" class="flex items-center space-x-5 sm:space-x-8"></ol>
+        </nav>
+      </div>
+    </div>
+
+    <main class="flex-grow flex flex-col p-4 space-y-4 overflow-hidden">
+      <div id="mission-details" class="bg-white shadow sm:rounded-lg p-4">
+        <h2 id="mission-number" class="text-lg font-semibold text-gray-900"></h2>
+        <p id="mission-instruction" class="mt-1 text-sm text-gray-600"></p>
+        <p id="mission-description" class="mt-2 text-sm text-gray-500"></p>
+      </div>
+      <div id="terminal-container" class="flex-grow bg-black rounded-lg shadow-lg overflow-hidden"></div>
+    </main>
   </div>
-  <div id="terminal-container"></div>
+
+  <script src="xterm/lib/xterm.js"></script>
+  <script src="xterm-fit/lib/xterm-addon-fit.js"></script>
   <script>
-    const term = new Terminal();
+    const term = new Terminal({
+      fontSize: 14,
+      fontFamily: '"Fira Code", monospace',
+      theme: {
+        background: '#1a1a1a',
+        foreground: '#f0f0f0',
+        cursor: '#4299e1'
+      },
+      cursorBlink: true
+    });
     const fit = new FitAddon.FitAddon();
     term.loadAddon(fit);
     term.open(document.getElementById('terminal-container'));
     fit.fit();
 
     const socket = new WebSocket(`ws://${window.location.host}${window.location.pathname}`);
+    let missions = [];
+    let currentMission = 0;
+
+    function updateMissionList() {
+      const missionList = document.getElementById('mission-list');
+      missionList.innerHTML = '';
+      missions.forEach((mission, index) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center';
+        if (index < currentMission) {
+          li.innerHTML = `
+                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 border-blue-600 rounded-full">
+                            <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </span>
+                        <span class="ml-4 text-sm font-medium text-gray-900">Mission ${index + 1}</span>
+                    `;
+        } else if (index === currentMission) {
+          li.innerHTML = `
+                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 border-blue-600 rounded-full bg-blue-600">
+                            <span class="text-white font-bold">${index + 1}</span>
+                        </span>
+                        <span class="ml-4 text-sm font-medium text-blue-600">Mission ${index + 1}</span>
+                    `;
+        } else {
+          li.innerHTML = `
+                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 border-gray-300 rounded-full">
+                            <span class="text-gray-500">${index + 1}</span>
+                        </span>
+                        <span class="ml-4 text-sm font-medium text-gray-500">Mission ${index + 1}</span>
+                    `;
+        }
+        li.onclick = () => selectMission(index);
+        missionList.appendChild(li);
+      });
+    }
+
+    function selectMission(index) {
+      currentMission = index;
+      updateMissionList();
+      updateMissionDetails(missions[index]);
+    }
+
+    function updateMissionDetails(mission) {
+      document.getElementById('mission-number').textContent = `Mission ${currentMission + 1}`;
+      document.getElementById('mission-instruction').textContent = mission.instruction;
+      document.getElementById('mission-description').textContent = mission.description;
+    }
 
     socket.onopen = () => {
       term.onData((data) => {
@@ -75,17 +137,18 @@
         case 'output':
           term.write(message.data);
           break;
-        case 'banner':
-          document.getElementById('banner').textContent = message.data;
-          break;
         case 'init':
+          missions.push(message);
+          currentMission = missions.length - 1;
+          updateMissionList();
+          updateMissionDetails(message);
+          break;
         case 'mission_complete':
-          document.getElementById('mission-number').textContent = `Step ${message.currentMission + 1}`;
-          document.getElementById('mission-instruction').textContent = message.instruction;
-          document.getElementById('mission-description').textContent = message.description;
-          if (message.type === 'mission_complete') {
-            term.write('\r\n🎉 Mission complete! Moving to next task.\r\n');
-          }
+          term.write('\r\n🎉 Mission complete! Preparing for next adventure...\r\n');
+          missions.push(message);
+          currentMission = missions.length - 1;
+          updateMissionList();
+          updateMissionDetails(message);
           break;
       }
     };
