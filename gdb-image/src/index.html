@@ -24,32 +24,59 @@
     .xterm-viewport::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
+
+    @keyframes fadeInOut {
+      0% {
+        opacity: 0;
+      }
+
+      10% {
+        opacity: 1;
+      }
+
+      90% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+      }
+    }
+
+    .fade-in-out {
+      animation: fadeInOut 1s ease-in-out;
+    }
   </style>
 </head>
 
-<body class="bg-gray-100 h-screen flex flex-col">
-  <header class="bg-blue-600 text-white p-4">
-    <h1 class="text-2xl font-bold">Adventure Terminal</h1>
-  </header>
+<body class="bg-gray-100 h-screen flex flex-col p-4 space-y-4">
+  <h1 class="text-2xl font-bold text-center text-gray-800">Adventure Terminal</h1>
 
-  <div class="flex-grow flex flex-col overflow-hidden">
-    <div class="bg-white shadow">
-      <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-        <nav class="flex" aria-label="Progress">
-          <ol id="mission-list" class="flex items-center space-x-5 sm:space-x-8"></ol>
-        </nav>
+  <div class="flex justify-center items-center space-x-4 py-4">
+    <div id="mission-list" class="flex items-center space-x-6">
+      <!-- Mission steps will be dynamically inserted here -->
+    </div>
+  </div>
+
+  <div class="bg-white shadow rounded-lg p-4 h-32 flex items-center">
+    <div id="mission-banner" class="flex items-center space-x-4 w-full">
+      <div class="text-6xl" id="mission-emoji">🚩</div>
+      <div class="flex-grow">
+        <h2 id="mission-number" class="text-2xl font-semibold"></h2>
+        <h3 id="mission-name" class="text-xl font-medium"></h3>
+        <p id="mission-description" class="text-sm text-gray-600 mt-2"></p>
       </div>
     </div>
-
-    <main class="flex-grow flex flex-col p-4 space-y-4 overflow-hidden">
-      <div id="mission-details" class="bg-white shadow sm:rounded-lg p-4">
-        <h2 id="mission-number" class="text-lg font-semibold text-gray-900"></h2>
-        <p id="mission-instruction" class="mt-1 text-sm text-gray-600"></p>
-        <p id="mission-description" class="mt-2 text-sm text-gray-500"></p>
+    <div id="congrats" class="hidden flex items-center space-x-4 w-full">
+      <div class="text-6xl">🎉</div>
+      <div class="flex-grow">
+        <h2 class="text-3xl font-bold text-green-500">Congratulations!</h2>
+        <p class="text-xl text-green-600">Mission Complete! Ready to move to the next mission.</p>
       </div>
-      <div id="terminal-container" class="flex-grow bg-black rounded-lg shadow-lg overflow-hidden"></div>
-    </main>
+    </div>
   </div>
+
+  <div id="terminal-container" class="flex-grow bg-black rounded-lg shadow-lg overflow-hidden"></div>
 
   <script src="xterm/lib/xterm.js"></script>
   <script src="xterm-fit/lib/xterm-addon-fit.js"></script>
@@ -77,47 +104,32 @@
       const missionList = document.getElementById('mission-list');
       missionList.innerHTML = '';
       missions.forEach((mission, index) => {
-        const li = document.createElement('li');
-        li.className = 'flex items-center';
-        if (index < currentMission) {
-          li.innerHTML = `
-                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 border-blue-600 rounded-full">
-                            <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                            </svg>
-                        </span>
-                        <span class="ml-4 text-sm font-medium text-gray-900">Mission ${index + 1}</span>
-                    `;
-        } else if (index === currentMission) {
-          li.innerHTML = `
-                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 border-blue-600 rounded-full bg-blue-600">
-                            <span class="text-white font-bold">${index + 1}</span>
-                        </span>
-                        <span class="ml-4 text-sm font-medium text-blue-600">Mission ${index + 1}</span>
-                    `;
-        } else {
-          li.innerHTML = `
-                        <span class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 border-gray-300 rounded-full">
-                            <span class="text-gray-500">${index + 1}</span>
-                        </span>
-                        <span class="ml-4 text-sm font-medium text-gray-500">Mission ${index + 1}</span>
-                    `;
-        }
-        li.onclick = () => selectMission(index);
-        missionList.appendChild(li);
+        const missionStep = document.createElement('div');
+        missionStep.className = `w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${index < currentMission ? 'bg-green-500 text-white' :
+          index === currentMission ? 'bg-blue-500 text-white' :
+            'bg-gray-300 text-gray-500'
+          }`;
+        missionStep.textContent = index + 1;
+        missionList.appendChild(missionStep);
       });
     }
 
-    function selectMission(index) {
-      currentMission = index;
-      updateMissionList();
-      updateMissionDetails(missions[index]);
+    function updateMissionDetails(mission, index) {
+      document.getElementById('mission-number').textContent = `Mission ${index + 1}`;
+      document.getElementById('mission-name').textContent = mission.instruction;
+      document.getElementById('mission-description').textContent = mission.description;
+      document.getElementById('mission-emoji').textContent = index === missions.length - 1 ? '🏆' : '🚩';
     }
 
-    function updateMissionDetails(mission) {
-      document.getElementById('mission-number').textContent = `Mission ${currentMission + 1}`;
-      document.getElementById('mission-instruction').textContent = mission.instruction;
-      document.getElementById('mission-description').textContent = mission.description;
+    function showCongrats() {
+      const missionBanner = document.getElementById('mission-banner');
+      const congrats = document.getElementById('congrats');
+      missionBanner.classList.add('hidden');
+      congrats.classList.remove('hidden');
+      setTimeout(() => {
+        missionBanner.classList.remove('hidden');
+        congrats.classList.add('hidden');
+      }, 3000);
     }
 
     socket.onopen = () => {
@@ -138,17 +150,18 @@
           term.write(message.data);
           break;
         case 'init':
-          missions.push(message);
-          currentMission = missions.length - 1;
+          missions = message.missions;
+          currentMission = message.currentMission;
           updateMissionList();
-          updateMissionDetails(message);
+          updateMissionDetails(missions[currentMission], currentMission);
           break;
         case 'mission_complete':
-          term.write('\r\n🎉 Mission complete! Preparing for next adventure...\r\n');
-          missions.push(message);
-          currentMission = missions.length - 1;
-          updateMissionList();
-          updateMissionDetails(message);
+          showCongrats();
+          setTimeout(() => {
+            currentMission = message.currentMission;
+            updateMissionList();
+            updateMissionDetails(missions[currentMission], currentMission);
+          }, 3000);
           break;
       }
     };

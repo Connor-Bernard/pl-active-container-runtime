@@ -48,7 +48,7 @@ function cleanOutput(output) {
 
 const missions = [
   { 
-    instruction: "Start your program so that it's at the first line in main, using one command.",
+    instruction: "Start your program",
     description: "Start your program so that it's at the first line in main, using one command.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -57,7 +57,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step over the printf line in the program.",
+    instruction: "Step over printf",
     description: "The first line in main is a call to printf. We do not want to step into this function. Step over this line in the program.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -65,7 +65,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step until the program is on the check_password call.",
+    instruction: "Step until check_password call",
     description: "Step until the program is on the check_password call. Note that the line with an arrow next to it is the line we're currently on, but has not been executed yet.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -73,7 +73,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step into check_password.",
+    instruction: "Step into check_password",
     description: "Step into check_password.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -82,7 +82,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step into check_lower.",
+    instruction: "Step into check_lower",
     description: "Step into check_lower.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -91,7 +91,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Print the value of password (password is a string).",
+    instruction: "Print password value",
     description: "Print the value of password (password is a string).",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -99,7 +99,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step out of check_lower immediately.",
+    instruction: "Step out of check_lower",
     description: "Step out of check_lower immediately. Do not step until the function returns.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -108,7 +108,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step into check_length.",
+    instruction: "Step into check_length",
     description: "Step into check_length.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -117,7 +117,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Step to the last line of the function.",
+    instruction: "Step to last line",
     description: "Step to the last line of the function.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -125,7 +125,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Print the return value of the function.",
+    instruction: "Print return value",
     description: "Print the return value of the function. The return value should be false.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -133,7 +133,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Print the value of length.",
+    instruction: "Print length value",
     description: "Print the value of length. It looks like length was correct, so there must be some logic issue on line 24.",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -141,7 +141,7 @@ const missions = [
     }
   },
   { 
-    instruction: "Quit GDB.",
+    instruction: "Quit GDB",
     description: "Quit GDB. GDB might ask you if you want to quit, type 'y' (but do not add 'y' to ex2_commands.txt).",
     check: (output) => {
       const cleanedOutput = cleanOutput(output);
@@ -152,12 +152,10 @@ const missions = [
 
 let currentMission = 0;
 
-// Static files
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.use('/xterm', express.static('node_modules/xterm'));
 app.use('/xterm-fit', express.static('node_modules/xterm-addon-fit'));
 
-// Create one pseudoterminal that all connections share
 let websockets = {};
 let ws_id = 0;
 let term_output = '';
@@ -247,13 +245,17 @@ const startGDB = () => {
   });
   
   term.write('file ./pwd_checker\n');
+  
+  setTimeout(() => {
+    term.write('set prompt (gdb) \n');
+    term.write('show prompt\n');
+  }, 500);
 
   term.on('data', function (data) {
     term_output += data;
     Object.values(websockets).forEach((ws) => {
       if (ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'output', data: data }));
-        ws.send(JSON.stringify({ type: 'banner', data: term_output }));
       }
     });
     
@@ -264,14 +266,14 @@ const startGDB = () => {
           ws.send(JSON.stringify({
             type: 'mission_complete',
             currentMission: currentMission,
-            instruction: currentMission < missions.length ? missions[currentMission].instruction : 'All missions completed!',
-            description: currentMission < missions.length ? missions[currentMission].description : 'Congratulations! You have completed all missions.'
+            missions: missions
           }));
         }
       });
       term_output = '';
     }
   });
+
   term.on('exit', () => {
     Object.values(websockets).forEach((ws) => {
       if (ws.readyState === 1) {
@@ -294,8 +296,7 @@ app.ws('/', (ws, req) => {
   ws.send(JSON.stringify({
     type: 'init',
     currentMission: currentMission,
-    instruction: missions[currentMission].instruction,
-    description: missions[currentMission].description
+    missions: missions
   }));
 
   ws.on('message', (msg) => {
