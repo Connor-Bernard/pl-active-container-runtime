@@ -1,6 +1,6 @@
 # PrairieLearn Interactive Workspace
 
-To build the GDB demo image, run `docker build -t andylizf/gdb-service .` in the `gdb-image` directory. For you, you need to change the `andylizf` to your Docker username, and also **change the image name in the questions/gdb/info.json file to your username**.
+To build the GDB demo image, run `docker build -t andylizf/gdb-service ./gdb-image && docker push andylizf/gdb-service:latest`. For you, you need to change the `andylizf` to your Docker username, and also **change the image name in the questions/gdb/info.json file to your username**.
 
 To run the PrairieLearn container, run the following command:
 
