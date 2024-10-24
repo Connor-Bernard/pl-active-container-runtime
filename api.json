@@ -1,0 +1,113 @@
+{
+	"_comment:clarification": "The actual config will just be a single dictionary represented by spec (see example for an example).  It will not need to be prefaced with this surrounding dictionary",
+	"_comment:implementation": "The user should be able to specify any number of extra key-value pairs in any section (eg: `example.flags[2].listener._comment`)",
+	"spec": {
+		"_comment": "any keys beginning with '_' are just comments and meta to define the spec.  They will not be included in the actual config",
+		"assignment": "assignment_name",
+		"container": "container_uri",
+		"flags": [
+			{
+				"title": "flag_title",
+				"prompt": "flag_caption",
+				"points": 1.0,
+				"_comment": "points defaults to 1.0 when not otherwise defined",
+				"litener": {
+					"buffer": "file_path",
+					"_buffer_default": "STDIN || STDOUT || STDERR",
+					"_buffer_default_comment": "by '||' I mean concatention.  i.e. anything from STDIN, STDOUT, or STDERR",
+					"_buffer_options": [
+						{
+							"value": "STDIN",
+							"implication": "`listener.match` only gets tested against what the user enters (stdin)"
+						},
+						{
+							"value": "STDOUT",
+							"implication": "`listener.match` only gets tested against what the terminal outputs (stdout)"
+						},
+						{
+							"value": "STDERR",
+							"implication": "`listener.match` only gets tested against what the terminal outputs to the error buffer (stderr)"
+						},
+						{
+							"value": "<file_path>",
+							"implication": "`listener.match` will be tested against the specified file within the student's terminal environment"
+						}
+					],
+					"_comment:buffer:implementation": "this file may or may not initially exist",
+					"type": "type_option",
+					"_type_default": "regex",
+					"_type_options": [
+						{
+							"value": "regex",
+							"implication": "`listener.match` will be tested against `listener.buffer`.  If a match is found, the flag will be marked as completed",
+							"syntax": "since json uses backslash to escape values, all escape sequences must be double-escaped"
+						},
+						{
+							"value": "exact",
+							"implication": "`listener.match` will be tested against `listener.buffer`.  The flag will only be marked as complete if they are the exact same",
+							"comment:implementation": "you may want to hash this and then just check if the file's hash matches",
+							"restrictions": [
+								"`listener.buffer` must be a file buffer"
+							]
+						},
+						{
+							"value": "hash",
+							"implication": "`listener.buffer` will be hashed with MD5 and matched against `listener.match`",
+							"comment:priority": "this is low priority.  Don't worry about doing this now, but it is something to consider for the future",
+							"restrictions": [
+								"`listener.buffer` must be a file buffer",
+								"`listener.match` must be a valid MD5 hash"
+							]
+						}
+					],
+					"match": "<value_to_match>",
+				}
+			}
+		],
+		"_comment:implementation": "the flags should be presented in the order the appear in `flags`"
+	},
+	"example": {
+		"assignment": "Lab 1",
+		"container": "cr16/gdb-service",
+		"flags": [
+			{
+				"title": "Start your program",
+				"prompt": "Start your program so that it's at the first line of main, using one command",
+				"points": 0,
+				"listener": {
+					"match": "^main\\s*\\(\\)\\s*at\\s*test_pwd_checker\\.c$"
+				}
+			},
+			{
+				"title": "Hello World",
+				"prompt": "echo 'hello world' to a file in your home folder called 'hello.txt'",
+				"points": 1,
+				"listener": {
+					"buffer": "~/hello.txt",
+					"type": "exact",
+					"match": "hello world"
+				}
+			},
+			{
+				"title": "Goodbye World",
+				"prompt": "echo 'goodbye world' to a file in your home folder called 'goodbye.txt",
+				"points": 1,
+				"listener": {
+					"buffer": "~/goodbye.txt",
+					"type": "hash",
+					"match": "f54a1fca2d39a6861ed89c203cbabe53",
+					"_comment": "goodbye world"
+				}
+			},
+			{
+				"title": "Say Hello!",
+				"prompt": "Make the terminal say 'hello'",
+				"points": 0.25,
+				"listener": {
+					"buffer": "STDOUT",
+					"match": "hello"
+				}
+			}
+		]
+	}
+}
