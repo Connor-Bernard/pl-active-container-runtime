@@ -60,7 +60,7 @@
 							]
 						}
 					],
-					"match": "<value_to_match>",
+					"match": "<value_to_match>"
 				}
 			}
 		],
