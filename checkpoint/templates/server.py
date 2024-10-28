@@ -70,9 +70,10 @@ class MissionHandler(WebSocketHandler):
 def main():
     """Start the terminal server"""
     term_manager = UniqueTermManager(shell_command=['gdb'])
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     
     settings = {
-        "static_path": os.path.dirname(os.path.abspath(__file__)),
+        "static_path": current_dir,
         "debug": True
     }
     
@@ -80,7 +81,7 @@ def main():
         (r"/terminals/(.*)", TermSocket, {'term_manager': term_manager}),
         (r"/missions", MissionHandler),
         (r"/(.*)", StaticFileHandler, {
-            "path": settings["static_path"],
+            "path": current_dir,
             "default_filename": "index.html"
         })
     ], **settings)

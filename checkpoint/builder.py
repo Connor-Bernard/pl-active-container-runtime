@@ -83,7 +83,7 @@ class DockerBuilder:
         {chr(10).join(docker_config.extra_commands)}
 
         # Set entrypoint
-        ENTRYPOINT ["python", "server.py"]
+        ENTRYPOINT ["python", "-u", "server.py"]
         """
         
         (build_dir / "Dockerfile").write_text(template)

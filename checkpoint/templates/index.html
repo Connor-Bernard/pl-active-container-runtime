@@ -46,10 +46,25 @@
         .fade-in-out {
             animation: fadeInOut 1s ease-in-out;
         }
+
+        #error-display {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            display: none;
+            max-width: 80%;
+            word-break: break-all;
+        }
     </style>
 </head>
 
 <body class="bg-gray-100 h-screen flex flex-col p-4 space-y-4">
+    <div id="error-display"></div>
     <h1 class="text-2xl font-bold text-center text-gray-800">Checkpoint Terminal</h1>
 
     <div class="flex justify-center items-center space-x-4 py-4">
@@ -80,6 +95,15 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script>
+        function showError(msg) {
+            const errorDiv = document.getElementById('error-display');
+            errorDiv.textContent = msg;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 10000);
+        }
+
         const term = new Terminal({
             fontSize: 24,
             fontFamily: '"Fira Code", monospace',
@@ -96,13 +120,19 @@
         term.open(document.getElementById('terminal-container'));
         fit.fit();
 
-        const protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
-        const terminalSocket = new WebSocket(`${protocol}//${window.location.host}/terminals/main`);
-        const missionSocket = new WebSocket(`${protocol}//${window.location.host}/missions`);
+        const socketPath = window.location.pathname.replace(/\/+$/, '') + '/terminals/main';
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socketUrl = `${wsProtocol}//${window.location.host}${socketPath}`;
+        const missionUrl = `${wsProtocol}//${window.location.host}${window.location.pathname.replace(/\/+$/, '')}/missions`;
+
+        showError(`Attempting connection to: ${socketUrl}`);
+
+        const terminalSocket = new WebSocket(socketUrl);
+        const missionSocket = new WebSocket(missionUrl);
 
         // Terminal Socket
         terminalSocket.onopen = () => {
-            console.log('Terminal WebSocket connection established');
+            showError('Terminal connection established');
 
             terminalSocket.send(JSON.stringify(['set_size', term.rows, term.cols]));
 
@@ -115,7 +145,6 @@
             });
 
             window.addEventListener('resize', () => fit.fit());
-
             fit.fit();
         };
 
@@ -129,7 +158,7 @@
         // Mission Socket
         missionSocket.onmessage = (event) => {
             const message = JSON.parse(event.data);
-            console.log('Received mission message:', message);
+            showError('Received mission message: ' + JSON.stringify(message).substring(0, 100) + '...');
 
             switch (message.type) {
                 case 'init':
@@ -152,12 +181,12 @@
 
         [terminalSocket, missionSocket].forEach(socket => {
             socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
+                showError('WebSocket error: ' + error);
                 term.write('\r\n\x1b[31mConnection error. Please refresh the page.\x1b[0m\r\n');
             };
 
             socket.onclose = () => {
-                console.log('WebSocket connection closed');
+                showError('WebSocket connection closed');
                 term.write('\r\n\x1b[31mConnection closed. Please refresh the page.\x1b[0m\r\n');
             };
         });
@@ -198,9 +227,9 @@
         }
 
 
-        setInterval(() => {
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({ type: 'heartbeat' }));
+        let heartbeatInterval = setInterval(() => {
+            if (terminalSocket.readyState === WebSocket.OPEN) {
+                terminalSocket.send(JSON.stringify(['heartbeat']));
             }
         }, 30000);
     </script>
