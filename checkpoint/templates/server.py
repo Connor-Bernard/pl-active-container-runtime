@@ -1,23 +1,23 @@
+import os
 import re
 
-# It is imported in the template
 from config import MISSIONS  # type: ignore
 from terminado.management import UniqueTermManager
+from terminado.websocket import TermSocket
 from tornado.ioloop import IOLoop
-from tornado.web import Application, RequestHandler
+from tornado.web import Application, StaticFileHandler
+from tornado.websocket import WebSocketHandler
 
 
-class TerminalHandler(RequestHandler):
+class MissionHandler(WebSocketHandler):
+    def initialize(self):
+        self.current_mission = 0
+
     def check_origin(self, origin):
         return True
 
-    def initialize(self, term_manager):
-        self.term_manager = term_manager
-        self.current_mission = 0
-
-    async def websocket_handler(self, websocket):
-        # Send initial state
-        await websocket.write_message({
+    def open(self):
+        self.write_message({
             'type': 'init',
             'currentMission': self.current_mission,
             'missions': [
@@ -30,22 +30,20 @@ class TerminalHandler(RequestHandler):
             ]
         })
 
+    def on_message(self, _message: str | bytes) -> None:
         try:
-            while True:
-                msg = await websocket.read_message()
-                if msg is None:
-                    return
-                
-                # Check mission completion
-                await self._check_mission(msg, websocket)
-                
-                # Forward to terminal
-                await self.term_manager.terminal.write_message(msg)
-                
+            if isinstance(_message, bytes):
+                message: str = _message.decode('utf-8')
+            elif isinstance(_message, str):
+                message: str = _message
+            else:
+                raise ValueError(f"Invalid message type: {type(_message)}")
+            
+            self._check_mission(message)
         except Exception as e:
-            print(f"Error in websocket handler: {e}")
+            print(f"Error handling message: {e}")
 
-    async def _check_mission(self, output: str, websocket) -> None:
+    def _check_mission(self, output: str) -> None:
         if self.current_mission >= len(MISSIONS):
             return
             
@@ -60,10 +58,10 @@ class TerminalHandler(RequestHandler):
         
         if is_completed:
             self.current_mission += 1
-            await self._send_mission_complete(websocket)
+            self._send_mission_complete()
 
-    async def _send_mission_complete(self, websocket):
-        await websocket.write_message({
+    def _send_mission_complete(self):
+        self.write_message({
             'type': 'mission_complete',
             'currentMission': self.current_mission,
             'missions': MISSIONS
@@ -73,11 +71,21 @@ def main():
     """Start the terminal server"""
     term_manager = UniqueTermManager(shell_command=['gdb'])
     
-    app = Application([
-        (r"/websocket", TerminalHandler, {'term_manager': term_manager}),
-        (r"/(.*)", RequestHandler, {"path": "."})  # Serve static files
-    ])
+    settings = {
+        "static_path": os.path.dirname(os.path.abspath(__file__)),
+        "debug": True
+    }
     
+    app = Application([
+        (r"/terminals/(.*)", TermSocket, {'term_manager': term_manager}),
+        (r"/missions", MissionHandler),
+        (r"/(.*)", StaticFileHandler, {
+            "path": settings["static_path"],
+            "default_filename": "index.html"
+        })
+    ], **settings)
+    
+    print("Server starting on port 8080...")
     app.listen(8080, '0.0.0.0')
     IOLoop.current().start()
 

@@ -97,8 +97,70 @@
         fit.fit();
 
         const protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
-        const socketUrl = `${protocol}//${window.location.host}/websocket`;
-        const socket = new WebSocket(socketUrl);
+        const terminalSocket = new WebSocket(`${protocol}//${window.location.host}/terminals/main`);
+        const missionSocket = new WebSocket(`${protocol}//${window.location.host}/missions`);
+
+        // Terminal Socket
+        terminalSocket.onopen = () => {
+            console.log('Terminal WebSocket connection established');
+
+            terminalSocket.send(JSON.stringify(['set_size', term.rows, term.cols]));
+
+            term.onData(data => {
+                terminalSocket.send(JSON.stringify(['stdin', data]));
+            });
+
+            term.onResize(() => {
+                terminalSocket.send(JSON.stringify(['set_size', term.rows, term.cols]));
+            });
+
+            window.addEventListener('resize', () => fit.fit());
+
+            fit.fit();
+        };
+
+        terminalSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data[0] === 'stdout' || data[0] === 'stderr') {
+                term.write(data[1]);
+            }
+        };
+
+        // Mission Socket
+        missionSocket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log('Received mission message:', message);
+
+            switch (message.type) {
+                case 'init':
+                    missions = message.missions;
+                    currentMission = message.currentMission;
+                    updateMissionList();
+                    updateMissionDetails(missions[currentMission], currentMission);
+                    break;
+
+                case 'mission_complete':
+                    showCongrats();
+                    setTimeout(() => {
+                        currentMission = message.currentMission;
+                        updateMissionList();
+                        updateMissionDetails(missions[currentMission], currentMission);
+                    }, 3000);
+                    break;
+            }
+        };
+
+        [terminalSocket, missionSocket].forEach(socket => {
+            socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                term.write('\r\n\x1b[31mConnection error. Please refresh the page.\x1b[0m\r\n');
+            };
+
+            socket.onclose = () => {
+                console.log('WebSocket connection closed');
+                term.write('\r\n\x1b[31mConnection closed. Please refresh the page.\x1b[0m\r\n');
+            };
+        });
 
         let missions = [];
         let currentMission = 0;
@@ -135,65 +197,6 @@
             }, 3000);
         }
 
-        socket.onopen = () => {
-            console.log('WebSocket connection established');
-
-            term.onData(data => {
-                socket.send(JSON.stringify({
-                    type: 'input',
-                    data: data
-                }));
-            });
-
-            term.onResize(() => {
-                socket.send(JSON.stringify({
-                    type: 'resize',
-                    rows: term.rows,
-                    cols: term.cols
-                }));
-            });
-
-            window.addEventListener('resize', () => fit.fit());
-
-            fit.fit();
-        };
-
-        socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            console.log('Received message:', message);
-
-            switch (message.type) {
-                case 'terminal_output':
-                    term.write(message.data);
-                    break;
-
-                case 'init':
-                    missions = message.missions;
-                    currentMission = message.currentMission;
-                    updateMissionList();
-                    updateMissionDetails(missions[currentMission], currentMission);
-                    break;
-
-                case 'mission_complete':
-                    showCongrats();
-                    setTimeout(() => {
-                        currentMission = message.currentMission;
-                        updateMissionList();
-                        updateMissionDetails(missions[currentMission], currentMission);
-                    }, 3000);
-                    break;
-            }
-        };
-
-        socket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            term.write('\r\n\x1b[31mConnection error. Please refresh the page.\x1b[0m\r\n');
-        };
-
-        socket.onclose = () => {
-            console.log('WebSocket connection closed');
-            term.write('\r\n\x1b[31mConnection closed. Please refresh the page.\x1b[0m\r\n');
-        };
 
         setInterval(() => {
             if (socket.readyState === WebSocket.OPEN) {
