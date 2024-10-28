@@ -81,7 +81,7 @@
   <script src="xterm-fit/lib/xterm-addon-fit.js"></script>
   <script>
     const term = new Terminal({
-      fontSize: 20,
+      fontSize: 24,
       fontFamily: '"Fira Code", monospace',
       theme: {
         background: '#1a1a1a',
@@ -156,7 +156,6 @@
           console.log('Writing to terminal:', message.data);
           if (!firstOutputReceived) {
             firstOutputReceived = true;
-            // 跳过第一次的输出，因为我们已经手动添加了 (gdb) 提示符
           } else {
             term.write(message.data);
           }

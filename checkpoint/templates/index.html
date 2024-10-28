@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkpoint Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <style>
+        .xterm-viewport::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 5px;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .fade-in-out {
+            animation: fadeInOut 1s ease-in-out;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 h-screen flex flex-col p-4 space-y-4">
+    <h1 class="text-2xl font-bold text-center text-gray-800">Checkpoint Terminal</h1>
+
+    <div class="flex justify-center items-center space-x-4 py-4">
+        <div id="mission-list" class="flex items-center space-x-6">
+        </div>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-4 h-32 flex items-center">
+        <div id="mission-banner" class="flex items-center space-x-4 w-full">
+            <div class="text-6xl" id="mission-emoji">🚩</div>
+            <div class="flex-grow">
+                <h2 id="mission-number" class="text-2xl font-semibold"></h2>
+                <h3 id="mission-name" class="text-xl font-medium"></h3>
+                <p id="mission-description" class="text-sm text-gray-600 mt-2"></p>
+            </div>
+        </div>
+        <div id="congrats" class="hidden flex items-center space-x-4 w-full">
+            <div class="text-6xl">🎉</div>
+            <div class="flex-grow">
+                <h2 class="text-3xl font-bold text-green-500">Congratulations!</h2>
+                <p class="text-xl text-green-600">Mission Complete! Ready to move to the next mission.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="terminal-container" class="flex-grow bg-black rounded-lg shadow-lg overflow-hidden"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script>
+        const term = new Terminal({
+            fontSize: 24,
+            fontFamily: '"Fira Code", monospace',
+            theme: {
+                background: '#1a1a1a',
+                foreground: '#f0f0f0',
+                cursor: '#4299e1'
+            },
+            cursorBlink: true
+        });
+
+        const fit = new FitAddon.FitAddon();
+        term.loadAddon(fit);
+        term.open(document.getElementById('terminal-container'));
+        fit.fit();
+
+        const protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+        const socketUrl = `${protocol}//${window.location.host}/websocket`;
+        const socket = new WebSocket(socketUrl);
+
+        let missions = [];
+        let currentMission = 0;
+
+        function updateMissionList() {
+            const missionList = document.getElementById('mission-list');
+            missionList.innerHTML = '';
+            missions.forEach((mission, index) => {
+                const missionStep = document.createElement('div');
+                missionStep.className = `w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${index < currentMission ? 'bg-green-500 text-white' :
+                    index === currentMission ? 'bg-blue-500 text-white' :
+                        'bg-gray-300 text-gray-500'
+                    }`;
+                missionStep.textContent = index + 1;
+                missionList.appendChild(missionStep);
+            });
+        }
+
+        function updateMissionDetails(mission, index) {
+            document.getElementById('mission-number').textContent = `Mission ${index + 1}`;
+            document.getElementById('mission-name').textContent = mission.title;
+            document.getElementById('mission-description').textContent = mission.description;
+            document.getElementById('mission-emoji').textContent = index === missions.length - 1 ? '🏆' : '🚩';
+        }
+
+        function showCongrats() {
+            const missionBanner = document.getElementById('mission-banner');
+            const congrats = document.getElementById('congrats');
+            missionBanner.classList.add('hidden');
+            congrats.classList.remove('hidden');
+            setTimeout(() => {
+                missionBanner.classList.remove('hidden');
+                congrats.classList.add('hidden');
+            }, 3000);
+        }
+
+        socket.onopen = () => {
+            console.log('WebSocket connection established');
+
+            term.onData(data => {
+                socket.send(JSON.stringify({
+                    type: 'input',
+                    data: data
+                }));
+            });
+
+            term.onResize(() => {
+                socket.send(JSON.stringify({
+                    type: 'resize',
+                    rows: term.rows,
+                    cols: term.cols
+                }));
+            });
+
+            window.addEventListener('resize', () => fit.fit());
+
+            fit.fit();
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log('Received message:', message);
+
+            switch (message.type) {
+                case 'terminal_output':
+                    term.write(message.data);
+                    break;
+
+                case 'init':
+                    missions = message.missions;
+                    currentMission = message.currentMission;
+                    updateMissionList();
+                    updateMissionDetails(missions[currentMission], currentMission);
+                    break;
+
+                case 'mission_complete':
+                    showCongrats();
+                    setTimeout(() => {
+                        currentMission = message.currentMission;
+                        updateMissionList();
+                        updateMissionDetails(missions[currentMission], currentMission);
+                    }, 3000);
+                    break;
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            term.write('\r\n\x1b[31mConnection error. Please refresh the page.\x1b[0m\r\n');
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket connection closed');
+            term.write('\r\n\x1b[31mConnection closed. Please refresh the page.\x1b[0m\r\n');
+        };
+
+        setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'heartbeat' }));
+            }
+        }, 30000);
+    </script>
+</body>
+
+</html>
