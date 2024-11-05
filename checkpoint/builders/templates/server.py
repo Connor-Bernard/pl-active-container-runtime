@@ -1,5 +1,7 @@
+import argparse
 import os
 import re
+from typing import Any
 
 from config import MISSIONS  # type: ignore
 from terminado.management import UniqueTermManager
@@ -8,15 +10,15 @@ from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado.websocket import WebSocketHandler
 
-
+MISSIONS: list[dict[str, Any]]
 class MissionHandler(WebSocketHandler):
     def initialize(self):
         self.current_mission = 0
 
-    def check_origin(self, origin):
+    def check_origin(self, origin: str) -> bool:
         return True
 
-    def open(self):
+    def open(self, *args: Any, **kwargs: Any) -> None:
         self.write_message({
             'type': 'init',
             'currentMission': self.current_mission,
@@ -69,6 +71,10 @@ class MissionHandler(WebSocketHandler):
 
 def main():
     """Start the terminal server"""
+    parser = argparse.ArgumentParser(description='Terminal server for checkpoint')
+    parser.add_argument('--port', type=int, default=8080, help='Port to listen on')
+    args = parser.parse_args()
+
     term_manager = UniqueTermManager(shell_command=['gdb'])
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
@@ -86,8 +92,8 @@ def main():
         })
     ], **settings)
     
-    print("Server starting on port 8080...")
-    app.listen(8080, '0.0.0.0')
+    print(f"Server starting on port {args.port}...")
+    app.listen(args.port, '0.0.0.0')
     IOLoop.current().start()
 
 if __name__ == "__main__":

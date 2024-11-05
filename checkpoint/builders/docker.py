@@ -1,38 +1,62 @@
+import json
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import docker
 import jinja2
 
-from .config import AssessmentConfig
+from ..models.question import CheckpointQuestion
 
+
+def check_docker_auth(username: str) -> bool:
+    docker_config_path = Path.home() / ".docker" / "config.json"
+    
+    # Step 1: Get the `credsStore` value
+    if not docker_config_path.exists():
+        return False
+    
+    with open(docker_config_path) as f:
+        config = json.load(f)
+        creds_store = config.get("credsStore")
+    
+    if not creds_store:
+        return False
+
+    # Step 2: From the credential store, extract the Docker Hub username
+    command = [
+        f"docker-credential-{creds_store}", "list"
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    creds = json.loads(result.stdout)
+    
+    # Step 3: Find the entry containing "docker.io"
+    return any(
+        "docker.io" in key and username in value
+        for key, value in creds.items()
+    )
 
 class DockerBuilder:
-    """Builds Docker images for terminal-based assessments"""
-    
-    def __init__(self, config: AssessmentConfig):
+    def __init__(self, config: CheckpointQuestion):
         self.config = config
         self.client = docker.from_env()
-        
-    def build(self, tag: Optional[str] = None) -> str:
-        """Build Docker image and return image ID"""
+    
+    def build(self, tag: str) -> str:
+        """Build Docker image for the checkpoint"""
         with tempfile.TemporaryDirectory() as tmpdir:
             build_dir = Path(tmpdir)
             self._prepare_context(build_dir)
             
-            image_tag = tag or f"checkpoint-{self.config.assignment.lower().replace(' ', '-')}"
-            
             image, _ = self.client.images.build(
                 path=str(build_dir),
-                tag=image_tag,
+                tag=tag,
                 dockerfile=str(build_dir / "Dockerfile"),
             )
             if not image.id:
                 raise ValueError("Docker build failed: no image ID returned")
             return image.id
-            
+    
     def _prepare_context(self, build_dir: Path) -> None:
         """Prepare Docker build context"""
         self._copy_templates(build_dir)
@@ -58,15 +82,15 @@ class DockerBuilder:
         (build_dir / "config.py").write_text(config_content)
     
     def _generate_dockerfile(self, build_dir: Path) -> None:
-        """Generate Dockerfile for the assessment"""
         docker_config = self.config.docker
+        port = self.config.workspace_port
         
         template = f"""
         FROM {docker_config.base_image}
 
         # Install system packages
         RUN apt-get update && apt-get upgrade -y
-        RUN apt-get install -y gdb {"".join(docker_config.extra_packages)}
+        RUN apt-get install -y gdb
 
         # Install Python packages
         COPY requirements.txt .
@@ -78,12 +102,13 @@ class DockerBuilder:
 
         # Create user
         RUN useradd -m {docker_config.user}
-        
-        # Extra commands
-        {chr(10).join(docker_config.extra_commands)}
 
-        # Set entrypoint
-        ENTRYPOINT ["python", "-u", "server.py"]
+        # Set entrypoint with configured port
+        ENTRYPOINT ["python", "-u", "server.py", "--port", "{port}"]
         """
         
         (build_dir / "Dockerfile").write_text(template)
+
+    def push(self, tag: str):
+        """Push Docker image to registry"""
+        self.client.images.push(tag) # type: ignore

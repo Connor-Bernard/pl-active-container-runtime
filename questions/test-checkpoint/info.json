@@ -1,0 +1,19 @@
+{
+  "uuid": "c8ccd278-e5fa-4492-8f44-0c0bb5b69519",
+  "title": "My Checkpoint",
+  "topic": "Topic",
+  "tags": [
+    "checkpoint"
+  ],
+  "type": "v3",
+  "singleVariant": true,
+  "gradingMethod": "Internal",
+  "showCorrectAnswer": false,
+  "partialCredit": false,
+  "workspaceOptions": {
+    "image": "andylizf/checkpoint-my-checkpoint",
+    "port": 8080,
+    "home": "/home/student",
+    "gradedFiles": []
+  }
+}

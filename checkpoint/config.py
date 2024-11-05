@@ -15,7 +15,7 @@ class DockerConfig(BaseModel):
     volumes: Dict[str, str] = Field(default_factory=dict)
 
     @field_validator('base_image')
-    def validate_base_image(cls, v):
+    def validate_base_image(cls, v: str) -> str:
         if ':' not in v:
             raise ValueError("base_image must include a tag (e.g., python:3.11-slim)")
         return v
@@ -28,14 +28,14 @@ class ListenerConfig(BaseModel):
     timeout: Optional[int] = None
 
     @field_validator('buffer')
-    def validate_buffer(cls, v):
+    def validate_buffer(cls, v: str) -> str:
         valid_buffers = ['STDIN', 'STDOUT', 'STDERR']
         if v not in valid_buffers and not v.startswith('/'):
             raise ValueError(f"buffer must be one of {valid_buffers} or a file path")
         return v
 
     @field_validator('type')
-    def validate_type(cls, v):
+    def validate_type(cls, v: str) -> str:
         valid_types = ['regex', 'exact', 'hash']
         if v not in valid_types:
             raise ValueError(f"type must be one of {valid_types}")
@@ -62,7 +62,7 @@ class AssessmentConfig(BaseModel):
         return cls.model_validate(content)
 
     @field_validator('flags')
-    def validate_flags(cls, v):
+    def validate_flags(cls, v: List[FlagConfig]) -> List[FlagConfig]:
         if not v:
             raise ValueError("At least one flag must be defined")
         return v

@@ -1,0 +1,17 @@
+uuid: c8ccd278-e5fa-4492-8f44-0c0bb5b69519
+title: My Checkpoint
+topic: Topic
+tags:
+- checkpoint
+docker:
+  registry: andylizf
+  image: my-checkpoint
+flags:
+- title: Example Flag
+  prompt: Your first checkpoint
+  description: Description of what to do
+  listener:
+    buffer: STDOUT
+    type: regex
+    match: example
+  files: []
