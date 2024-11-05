@@ -15,7 +15,7 @@ from tornado.websocket import WebSocketHandler
 
 
 class GradeManager:
-    GRADE_DIR = Path("/grade")
+    GRADE_DIR = Path("/checkpoint_grade")
     GRADE_FILE = GRADE_DIR / "results.json"
 
     @classmethod
@@ -117,11 +117,21 @@ def main():
     """Start the terminal server"""
     parser = argparse.ArgumentParser(description='Terminal server for checkpoint')
     parser.add_argument('--port', type=int, default=8080, help='Port to listen on')
+    parser.add_argument('--user', type=str, required=True, help='User to run as')
+    parser.add_argument('--workdir', type=str, required=True, help='Working directory')
     args = parser.parse_args()
 
     GradeManager.init()
 
-    term_manager = UniqueTermManager(shell_command=['gdb'])
+    program = ['gdb']
+
+    term_manager = UniqueTermManager(
+        shell_command=[
+            'su', '-', args.user, '-c',
+            f'cd {args.workdir} && exec {" ".join(program)}'
+        ]
+    )
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
     settings = {

@@ -7,6 +7,8 @@ from pathlib import Path
 import docker
 import jinja2
 
+from checkpoint.constants import RUNTIME_DIR
+
 from ..models.question import CheckpointQuestion
 
 
@@ -83,7 +85,9 @@ class DockerBuilder:
     
     def _generate_dockerfile(self, build_dir: Path) -> None:
         docker_config = self.config.docker
+        runtime_dir = RUNTIME_DIR.as_posix()
         port = self.config.workspace_port
+        user = docker_config.user
         
         template = f"""
         FROM {docker_config.base_image}
@@ -92,19 +96,22 @@ class DockerBuilder:
         RUN apt-get update && apt-get upgrade -y
         RUN apt-get install -y gdb
 
+        # Setup working directory
+        WORKDIR {runtime_dir}
+        RUN chmod -R 700 {runtime_dir}
+
         # Install Python packages
         COPY requirements.txt .
         RUN pip install --no-cache-dir -r requirements.txt
 
-        # Setup working directory
-        WORKDIR {docker_config.workdir}
+        # Copy application files
         COPY . .
 
         # Create user
-        RUN useradd -m {docker_config.user}
+        RUN useradd -m {user}
 
-        # Set entrypoint with configured port
-        ENTRYPOINT ["python", "-u", "server.py", "--port", "{port}"]
+        # Set entrypoint
+        ENTRYPOINT ["python", "-u", "server.py", "--port", "{port}", "--user", "{user}", "--workdir", "{self.config.workspace_home}"]
         """
         
         (build_dir / "Dockerfile").write_text(template)
