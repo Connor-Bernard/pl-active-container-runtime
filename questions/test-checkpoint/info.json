@@ -14,6 +14,8 @@
     "image": "andylizf/checkpoint-my-checkpoint",
     "port": 8080,
     "home": "/home/student",
-    "gradedFiles": []
+    "gradedFiles": [
+      "/grade/results.json"
+    ]
   }
 }
