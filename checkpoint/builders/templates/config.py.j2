@@ -5,12 +5,9 @@ MISSIONS = [
         "prompt": "{{ flag.prompt }}",
         "description": "{{ flag.description }}",
         "listener": {
-            "buffer": "{{ flag.listener.buffer }}",
-            "type": "{{ flag.listener.type }}",
-            "match": """{{ flag.listener.match }}""",
-            {% if flag.listener.timeout %}
-            "timeout": {{ flag.listener.timeout }},
-            {% endif %}
+            "type": "{{ flag.listener.type.value }}",
+            "target": "{{ flag.listener.target.value }}",
+            "match": """{{ flag.listener.match }}"""
         }
     },
     {% endfor %}

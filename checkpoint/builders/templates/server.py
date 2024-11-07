@@ -14,7 +14,7 @@ from terminado.management import UniqueTermManager
 from terminado.websocket import TermSocket
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
-from tornado.websocket import WebSocketHandler
+from tornado.websocket import WebSocketHandler, websocket_connect
 
 
 class GradeManager:
@@ -97,37 +97,46 @@ class MissionHandler(WebSocketHandler):
         })
         GradeManager.update(self.current_mission)
 
-    def on_message(self, message: str | bytes) -> None:
+    def on_message(self, message: str | bytes) -> Future[None]:
         try:
             if isinstance(message, bytes):
                 message = message.decode('utf-8')
             
-            logging.info(f"User Input: {message}")
-            self._check_mission(message)
+            data = json.loads(message)
+            content = data['content']
+            message_type = data['type']  # 'command' or 'output'
+            
+            return self._check_mission(content, message_type)
         except Exception as e:
             logging.error(f"Error handling message: {e}")
-            print(f"Error handling message: {e}")
+            return Future()
 
-    def _check_mission(self, output: str) -> None:
+    def _check_mission(self, content: str, message_type: str) -> Future[None]:
         if self.current_mission >= len(MISSIONS):
-            return
+            return Future()
             
         mission = MISSIONS[self.current_mission]
         listener = mission['listener']
         
+        # Skip if message type doesn't match the target
+        if listener['target'] != message_type:
+            return Future()
+            
         is_completed = False
         if listener['type'] == 'regex':
-            is_completed = bool(re.search(listener['match'], output))
+            is_completed = bool(re.search(listener['match'], content))
         elif listener['type'] == 'exact':
-            is_completed = output.strip() == listener['match']
+            is_completed = content.strip() == listener['match']
         
         if is_completed:
             self.current_mission += 1
             GradeManager.update(self.current_mission)
-            self._send_mission_complete()
+            return self._send_mission_complete()
+    
+        return Future()
 
-    def _send_mission_complete(self):
-        self.write_message({
+    def _send_mission_complete(self) -> Future[None]:
+        return self.write_message({
             'type': 'mission_complete',
             'currentMission': self.current_mission,
             'missions': MISSIONS
@@ -150,8 +159,13 @@ class TermSocketWithLogging(TermSocket):
                     input_text = data[1]
                     if input_text == "\r":
                         command = ''.join(self._current_input)
-                        if command.strip():  # Only record non-empty commands
+                        if command.strip():
                             logging.info(f"User Command: {command}")
+                            # Send clean command to mission handler
+                            IOLoop.current().add_callback(
+                                self._notify_mission_handler,
+                                {'type': 'command', 'content': command}
+                            )
                         self._current_input = []
                     elif input_text in ('\b', '\x7f'):
                         if self._current_input:
@@ -214,13 +228,15 @@ class TermSocketWithLogging(TermSocket):
         if self._output_buffer:
             output = ''.join(self._output_buffer)
             if output.strip():
-                # Normalize output format
-                lines = output.splitlines()
-                # Remove empty lines, but keep indentation
-                clean_lines = [line for line in lines if line.strip()]
+                clean_lines = [line for line in output.splitlines() if line.strip()]
                 if clean_lines:
                     clean_output = '\n'.join(clean_lines)
                     logging.info(f"Program Output: {clean_output}")
+                    # Send clean output to mission handler
+                    IOLoop.current().add_callback(
+                        self._notify_mission_handler,
+                        {'type': 'output', 'content': clean_output}
+                    )
             self._output_buffer = []
 
     def on_close(self):
@@ -228,6 +244,14 @@ class TermSocketWithLogging(TermSocket):
         self._flush_output_buffer()
         logging.info("Terminal connection closed")
         super().on_close()
+
+    async def _notify_mission_handler(self, data: dict[str, Any]):
+        try:
+            ws = await websocket_connect("ws://localhost:8080/missions")
+            await ws.write_message(json.dumps(data))
+            ws.close()
+        except Exception as e:
+            logging.error(f"Failed to notify mission handler: {e}")
 
 def main():
     """Start the terminal server"""

@@ -1,5 +1,6 @@
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -12,11 +13,24 @@ class CheckpointFile(BaseModel):
     target: str
     graded: bool = True
 
+class ListenerType(str, Enum):
+    REGEX = "regex"
+    EXACT = "exact"
+
+class ListenerTarget(str, Enum):
+    COMMAND = "command"
+    OUTPUT = "output"
+
+class CheckpointListener(BaseModel):
+    type: ListenerType
+    target: ListenerTarget
+    match: str
+
 class CheckpointFlag(BaseModel):
     title: str
     prompt: str
     description: str
-    listener: dict[str, str]
+    listener: CheckpointListener
     files: list[CheckpointFile] = Field(default_factory=list)
 
 class CheckpointQuestion(BaseModel):

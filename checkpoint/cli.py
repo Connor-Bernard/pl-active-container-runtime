@@ -43,7 +43,7 @@ def init():
                 "prompt": "Your first checkpoint",
                 "description": "Description of what to do",
                 "listener": {
-                    "buffer": "STDOUT",
+                    "target": "output",
                     "type": "regex",
                     "match": "example"
                 },
@@ -110,7 +110,7 @@ def push():
     image_name = config.docker.get_image_name()
     username = config.docker.registry
     if not check_docker_auth(username):
-        click.echo(f"❌ Docker Hub credentials not found for {username}")
+        click.echo(f"❌ Docker Hub credentials not found for {username!r}")
         return
     
     click.echo(f"🚀 Pushing image {image_name} to Docker Hub")
@@ -145,7 +145,7 @@ def deploy():
     image_name = config.docker.get_image_name()
     username = config.docker.registry
     if not check_docker_auth(username):
-        click.echo(f"❌ Docker Hub credentials not found for {username}")
+        click.echo(f"❌ Docker Hub credentials not found for {username!r}")
         return
     
     # 1. Build Docker image

@@ -32,7 +32,7 @@ def check_docker_auth(username: str) -> bool:
     ]
     result = subprocess.run(command, capture_output=True, text=True)
     creds = json.loads(result.stdout)
-    
+
     # Step 3: Find the entry containing "docker.io"
     return any(
         "docker.io" in key and username in value
