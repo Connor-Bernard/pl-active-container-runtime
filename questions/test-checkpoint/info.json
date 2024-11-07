@@ -15,7 +15,7 @@
     "port": 8080,
     "home": "/home/student",
     "gradedFiles": [
-      "/grade/results.json"
+      "/checkpoint_grade/*"
     ]
   }
 }

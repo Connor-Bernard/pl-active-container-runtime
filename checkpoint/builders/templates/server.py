@@ -7,12 +7,11 @@ import stat
 import time
 from asyncio import Future
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 from config import MISSIONS  # type: ignore
 from terminado.management import UniqueTermManager
 from terminado.websocket import TermSocket
-from tornado import gen
 from tornado.ioloop import IOLoop
 from tornado.web import Application, StaticFileHandler
 from tornado.websocket import WebSocketHandler

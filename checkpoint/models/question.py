@@ -59,7 +59,7 @@ class CheckpointQuestion(BaseModel):
         }
     
     def _collect_graded_files(self) -> list[str]:
-        graded_files: set[str] = set(["/grade/results.json"])
+        graded_files: set[str] = set(["/checkpoint_grade/*"])
         for flag in self.flags:
             for file in flag.files:
                 if file.graded:
