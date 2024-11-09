@@ -55,18 +55,6 @@ def init():
     DEFAULT_CONFIG_PATH.write_text(yaml.dump(config, sort_keys=False))
     WORKSPACE_TEMPLATES_PATH.mkdir(exist_ok=True)
 
-    question_html = """<pl-question-panel>
-  <p>This is a workspace question with an interactive terminal for GDB tutorial.</p>
-  <pl-workspace></pl-workspace>
-</pl-question-panel>
-
-<pl-submission-panel>
-  <pl-file-preview>
-  </pl-file-preview>
-</pl-submission-panel>"""
-
-    QUESTION_HTML_PATH.write_text(question_html)
-
     click.echo(f"✨ Created {DEFAULT_CONFIG_PATH} template")
     click.echo("Next steps:")
     click.echo(f"1. Edit {DEFAULT_CONFIG_PATH}")

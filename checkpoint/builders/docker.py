@@ -88,6 +88,7 @@ class DockerBuilder:
         runtime_dir = RUNTIME_DIR.as_posix()
         port = self.config.workspace_port
         user = docker_config.user
+        workspace_home = self.config.workspace_home
         
         template = f"""
         FROM {docker_config.base_image}
@@ -111,7 +112,7 @@ class DockerBuilder:
         RUN useradd -m {user}
 
         # Set entrypoint
-        ENTRYPOINT ["python", "-u", "server.py", "--port", "{port}", "--user", "{user}", "--workdir", "{self.config.workspace_home}"]
+        ENTRYPOINT ["python", "-u", "server.py", "--port", "{port}", "--user", "{user}", "--workdir", "{workspace_home}"]
         """
         
         (build_dir / "Dockerfile").write_text(template)

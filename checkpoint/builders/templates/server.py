@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import stat
+import subprocess
 import time
 from asyncio import Future
 from pathlib import Path
@@ -18,9 +19,16 @@ from tornado.websocket import WebSocketHandler, websocket_connect
 
 
 class GradeManager:
-    GRADE_DIR = Path("/checkpoint_grade")
-    GRADE_FILE = GRADE_DIR / "results.json"
-    LOG_FILE = GRADE_DIR / "session.log"
+    GRADE_DIR: Path
+    GRADE_FILE: Path
+    LOG_FILE: Path
+
+    @classmethod
+    def set_workdir(cls, workdir: str) -> None:
+        """Set working directory for grade files"""
+        cls.GRADE_DIR = Path(workdir) / ".checkpoint"
+        cls.GRADE_FILE = cls.GRADE_DIR / "results.json"
+        cls.LOG_FILE = cls.GRADE_DIR / "session.log"
 
     @classmethod
     def _create_grade_data(cls, completed_missions: int, total_missions: int) -> dict[str, Any]:
@@ -261,6 +269,8 @@ def main():
     parser.add_argument('--workdir', type=str, required=True, help='Working directory')
     args = parser.parse_args()
 
+    # Set grade directory based on workdir
+    GradeManager.set_workdir(args.workdir)
     GradeManager.init()
 
     program = ['gdb']

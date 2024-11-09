@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
@@ -73,7 +73,7 @@ class CheckpointQuestion(BaseModel):
         }
     
     def _collect_graded_files(self) -> list[str]:
-        graded_files: set[str] = set(["/checkpoint_grade/*"])
+        graded_files: set[str] = {".checkpoint/results.json"}
         for flag in self.flags:
             for file in flag.files:
                 if file.graded:
