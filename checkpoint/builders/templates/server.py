@@ -269,6 +269,29 @@ def main():
     parser.add_argument('--workdir', type=str, required=True, help='Working directory')
     args = parser.parse_args()
 
+    # Wait for workspace directory to exist and set permissions
+    # Note: PrairieLearn's behavior is to:
+    # 1. Create and start the container
+    # 2. Copy workspace files into the container's workdir
+    # So we need to wait for the directory to exist before setting permissions
+    max_attempts = 10  # Maximum number of attempts to wait
+    attempt = 0
+    while not os.path.exists(args.workdir) and attempt < max_attempts:
+        print(f"Waiting for workspace directory to be created... (attempt {attempt + 1}/{max_attempts})")
+        time.sleep(1)  # Wait for 1 second before next check
+        attempt += 1
+
+    if not os.path.exists(args.workdir):
+        print(f"Error: Workspace directory {args.workdir} was not created after {max_attempts} seconds")
+    else:
+        try:
+            # Use subprocess to change ownership to the target user
+            subprocess.run(['chown', '-R', f'{args.user}:{args.user}', args.workdir], check=True)
+            os.chmod(args.workdir, 0o700)  # rwx------
+            print(f"Successfully set permissions for workspace directory: {args.workdir}")
+        except Exception as e:
+            print(f"Failed to set workspace permissions: {e}")
+
     # Set grade directory based on workdir
     GradeManager.set_workdir(args.workdir)
     GradeManager.init()
