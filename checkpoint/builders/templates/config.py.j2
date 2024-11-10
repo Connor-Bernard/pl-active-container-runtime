@@ -3,7 +3,7 @@ MISSIONS = [
     {
         "title": "{{ flag.title }}",
         "prompt": "{{ flag.prompt }}",
-        "description": "{{ flag.description }}",
+        "description": """{{ flag.description }}""",
         "listener": {
             "type": "{{ flag.listener.type.value }}",
             "target": "{{ flag.listener.target.value }}",
@@ -12,3 +12,7 @@ MISSIONS = [
     },
     {% endfor %}
 ]
+
+PROGRAM_COMMAND = ["{{ program }}"] + {{ program_args }}
+
+SETUP_COMMANDS = {{ setup_commands }}

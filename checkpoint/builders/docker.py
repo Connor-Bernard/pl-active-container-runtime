@@ -76,26 +76,45 @@ class DockerBuilder:
     def _generate_config(self, build_dir: Path) -> None:
         """Generate config.py from assessment config"""
         pkg_dir = Path(__file__).parent
-        template = (pkg_dir / "templates" / "config.py.j2").read_text()
         
-        config_content = jinja2.Template(template).render(
-            flags=self.config.flags
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(pkg_dir / "templates"),
+            trim_blocks=True,
+            lstrip_blocks=True
         )
+        
+        template = env.get_template("config.py.j2")
+        config_content = template.render(
+            flags=self.config.flags,
+            program=self.config.runtime.program,
+            program_args=self.config.runtime.program_args,
+            setup_commands=self.config.runtime.setup_commands
+        )
+        
         (build_dir / "config.py").write_text(config_content)
     
     def _generate_dockerfile(self, build_dir: Path) -> None:
-        docker_config = self.config.docker
+        """Generate Dockerfile content"""
+        image_config = self.config.image
+        runtime_config = self.config.runtime
         runtime_dir = RUNTIME_DIR.as_posix()
         port = self.config.workspace_port
-        user = docker_config.user
         workspace_home = self.config.workspace_home
         
+        # Prepare package installation commands
+        package_commands = [
+            "apt-get install -y python3 python3-pip"
+        ]
+        if runtime_config.packages:
+            packages = " ".join(runtime_config.packages)
+            package_commands.append(f"apt-get install -y {packages}")
+        
         template = f"""
-        FROM {docker_config.base_image}
+        FROM {image_config.base}
 
         # Install system packages
-        RUN apt-get update && apt-get upgrade -y
-        RUN apt-get install -y gdb
+        RUN apt-get update && apt-get upgrade -y && \
+            {' && '.join(package_commands)}
 
         # Setup working directory
         WORKDIR {runtime_dir}
@@ -103,16 +122,16 @@ class DockerBuilder:
 
         # Install Python packages
         COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
+        RUN pip3 install --no-cache-dir -r requirements.txt
 
         # Copy application files
         COPY . .
 
         # Create user
-        RUN useradd -m {user}
+        RUN useradd -m {runtime_config.user}
 
         # Set entrypoint
-        ENTRYPOINT ["python", "-u", "server.py", "--port", "{port}", "--user", "{user}", "--workdir", "{workspace_home}"]
+        ENTRYPOINT ["python3", "-u", "server.py", "--port", "{port}", "--user", "{runtime_config.user}", "--workdir", "{workspace_home}"]
         """
         
         (build_dir / "Dockerfile").write_text(template)

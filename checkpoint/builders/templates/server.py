@@ -8,9 +8,9 @@ import subprocess
 import time
 from asyncio import Future
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-from config import MISSIONS  # type: ignore
+from config import MISSIONS, PROGRAM_COMMAND, SETUP_COMMANDS  # type: ignore
 from terminado.management import UniqueTermManager
 from terminado.websocket import TermSocket
 from tornado.ioloop import IOLoop
@@ -83,7 +83,12 @@ class GradeManager:
 
 
 MISSIONS: list[dict[str, Any]]
+PROGRAM_COMMAND: list[str]
+SETUP_COMMANDS: list[str]
+
 class MissionHandler(WebSocketHandler):
+    active_connections: set["MissionHandler"] = set()
+
     def initialize(self):
         self.current_mission = 0
 
@@ -91,6 +96,7 @@ class MissionHandler(WebSocketHandler):
         return True
 
     def open(self, *args: Any, **kwargs: Any) -> None:
+        MissionHandler.active_connections.add(self)
         self.write_message({
             'type': 'init',
             'currentMission': self.current_mission,
@@ -150,116 +156,110 @@ class MissionHandler(WebSocketHandler):
             'missions': MISSIONS
         })
 
+    def on_close(self) -> None:
+        MissionHandler.active_connections.remove(self)
+
 class TermSocketWithLogging(TermSocket):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._current_input: list[str] = []
         self._output_buffer: list[str] = []
-        self._last_output_time = time.time()
-        self._flush_scheduled = False
+        self._flush_timeout = 0.2
+        self._scheduled_flush: Optional[object] = None
+        self._last_input = ""  # 记录最后一次输入的字符
 
-    def on_message(self, message: str | bytes) -> Future[None]:
-        """Deal with messages from the client"""
+    def on_message(self, message: str | bytes) -> Any:
+        """处理用户输入消息"""
         try:
             if isinstance(message, str):
                 data = json.loads(message)
                 if data[0] == "stdin":
                     input_text = data[1]
-                    if input_text == "\r":
-                        command = ''.join(self._current_input)
-                        if command.strip():
+                    if input_text == "\r":  # 回车键
+                        command = ''.join(self._current_input).strip()
+                        if command:
+                            if self._scheduled_flush:
+                                IOLoop.current().remove_timeout(self._scheduled_flush)
+                                self._flush_output_buffer()
                             logging.info(f"User Command: {command}")
-                            # Send clean command to mission handler
                             IOLoop.current().add_callback(
                                 self._notify_mission_handler,
                                 {'type': 'command', 'content': command}
                             )
                         self._current_input = []
-                    elif input_text in ('\b', '\x7f'):
+                    elif input_text in ('\b', '\x7f'):  # 退格键
                         if self._current_input:
                             self._current_input.pop()
                     else:
                         self._current_input.append(input_text)
+                        self._last_input = input_text  # 记录最后一次输入
         except Exception as e:
             logging.error(f"Error parsing terminal input: {e}")
-        
-        return TermSocket.on_message(self, message)
 
-    def write_message(self, message: str | bytes | dict[str, Any], binary: bool = False) -> Future[None]:
-        """Deal with messages sent to the client"""
+        return super().on_message(message)
+
+    def write_message(self, message: str | bytes | dict[str, Any], binary: bool = False) -> Any:
+        """处理终端输出消息"""
         try:
             if isinstance(message, str):
                 data = json.loads(message)
-                if data[0] == "stdout":
+                if data[0] in ["stdout", "stderr"]:
                     text = data[1]
-                    # Clean control characters
+                    # 清理控制字符
                     clean_text = re.sub(r'\x1b\[[0-9;]*[mK]', '', text)
                     clean_text = re.sub(r'\x1b\[\?[0-9]+[hl]', '', clean_text)
                     clean_text = re.sub(r'\r\n?', '\n', clean_text)
                     clean_text = clean_text.replace('\b', '')
                     
-                    # If it's an echo of user input, don't record
-                    if clean_text.strip() and not any(
-                        clean_text.strip() == x for x in self._current_input
-                    ):
+                    # 如果输出正好是最后一次输入的字符，或者是当前正在输入的内容，就忽略它
+                    if (clean_text.strip() and 
+                        clean_text.strip() != self._last_input and  # 不是最后输入的字符
+                        clean_text.strip() != ''.join(self._current_input) and  # 不是当前输入的完整内容
+                        not clean_text.strip().endswith(self._last_input)):  # 不是以最后输入的字符结尾
                         self._output_buffer.append(clean_text)
-                        self._last_output_time = time.time()
-                        
-                        # If the buffer is too large, flush immediately
-                        if len(''.join(self._output_buffer)) > 1024:
-                            self._flush_output_buffer()
-                        # Otherwise, schedule a delayed flush
-                        elif not self._flush_scheduled:
-                            self._schedule_flush()
+                        self._schedule_flush()
         except Exception as e:
             logging.error(f"Error in write_message: {e}")
-        
-        return TermSocket.write_message(self, message, binary)
 
-    def _schedule_flush(self):
-        """Schedule a delayed flush"""
-        self._flush_scheduled = True
-        IOLoop.current().call_later( # type: ignore
-            0.1,  # 100ms delay
-            self._delayed_flush
+        return super().write_message(message, binary)
+
+    def _schedule_flush(self) -> None:
+        """安排刷新输出缓冲区"""
+        if self._scheduled_flush:
+            IOLoop.current().remove_timeout(self._scheduled_flush)
+        self._scheduled_flush = IOLoop.current().call_later(
+            self._flush_timeout,
+            self._flush_output_buffer
         )
 
-    def _delayed_flush(self):
-        """Delayed flush handling"""
-        self._flush_scheduled = False
-        # If the last output is more than 50ms ago, flush
-        if time.time() - self._last_output_time >= 0.05:
-            self._flush_output_buffer()
-
-    def _flush_output_buffer(self):
-        """Flush the output buffer"""
+    def _flush_output_buffer(self) -> None:
+        """刷新输出缓冲区"""
+        self._scheduled_flush = None
         if self._output_buffer:
             output = ''.join(self._output_buffer)
-            if output.strip():
-                clean_lines = [line for line in output.splitlines() if line.strip()]
-                if clean_lines:
-                    clean_output = '\n'.join(clean_lines)
-                    logging.info(f"Program Output: {clean_output}")
-                    # Send clean output to mission handler
-                    IOLoop.current().add_callback(
-                        self._notify_mission_handler,
-                        {'type': 'output', 'content': clean_output}
-                    )
+            if output:
+                logging.info(f"Program Output: {output}")
+                IOLoop.current().add_callback(
+                    self._notify_mission_handler,
+                    {'type': 'output', 'content': output}
+                )
             self._output_buffer = []
 
     def on_close(self):
         """Handle connection closure"""
+        if self._scheduled_flush:
+            IOLoop.current().remove_timeout(self._scheduled_flush)
         self._flush_output_buffer()
         logging.info("Terminal connection closed")
         super().on_close()
 
-    async def _notify_mission_handler(self, data: dict[str, Any]):
-        try:
-            ws = await websocket_connect("ws://localhost:8080/missions")
-            await ws.write_message(json.dumps(data))
-            ws.close()
-        except Exception as e:
-            logging.error(f"Failed to notify mission handler: {e}")
+    def _notify_mission_handler(self, data: dict[str, Any]) -> None:
+        """通知所有活动的 mission handlers"""
+        for handler in MissionHandler.active_connections:
+            try:
+                handler.on_message(json.dumps(data))
+            except Exception as e:
+                logging.error(f"Failed to notify mission handler: {e}")
 
 def main():
     """Start the terminal server"""
@@ -296,12 +296,20 @@ def main():
     GradeManager.set_workdir(args.workdir)
     GradeManager.init()
 
-    program = ['gdb']
+    # Use program command from config
+    program = PROGRAM_COMMAND
+    
+    # Prepare setup commands
+    setup_script = " && ".join(SETUP_COMMANDS) if SETUP_COMMANDS else ""
+    shell_command = f'cd {args.workdir}'
+    if setup_script:
+        shell_command += f' && {setup_script}'
+    shell_command += f' && exec {" ".join(program)}'
 
     term_manager = UniqueTermManager(
         shell_command=[
-            'su', '-', args.user, '-c',
-            f'cd {args.workdir} && exec {" ".join(program)}'
+            'su', '-l', args.user, '--session-command',
+            shell_command
         ]
     )
 

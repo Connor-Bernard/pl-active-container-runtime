@@ -10,7 +10,6 @@ from .builders.docker import DockerBuilder, check_docker_auth
 from .builders.question import QuestionBuilder
 from .constants import (
     DEFAULT_CONFIG_PATH,
-    QUESTION_HTML_PATH,
     WORKSPACE_TEMPLATES_PATH,
 )
 from .models.question import CheckpointQuestion
@@ -33,9 +32,16 @@ def init():
         "title": "My Checkpoint",
         "topic": "Topic",
         "tags": ["checkpoint"],
-        "docker": {
+        "image": {
             "registry": "username",
-            "image": "my-checkpoint"
+            "name": "my-checkpoint",
+            "base": "python:3.11-slim"
+        },
+        "runtime": {
+            "program": "bash",
+            "program_args": [],
+            "packages": [],
+            "setup_commands": []
         },
         "flags": [
             {
@@ -80,7 +86,7 @@ def build():
         return
     
     config = CheckpointQuestion.from_yaml(DEFAULT_CONFIG_PATH)
-    image_name = config.docker.get_image_name()
+    image_name = config.image.get_full_name()
     
     click.echo(f"🔨 Building image: {image_name}")
     builder = DockerBuilder(config)
@@ -95,8 +101,8 @@ def push():
         return
     
     config = CheckpointQuestion.from_yaml(DEFAULT_CONFIG_PATH)
-    image_name = config.docker.get_image_name()
-    username = config.docker.registry
+    image_name = config.image.get_full_name()
+    username = config.image.registry
     if not check_docker_auth(username):
         click.echo(f"❌ Docker Hub credentials not found for {username!r}")
         return
@@ -114,7 +120,7 @@ def generate():
         return
     
     config = CheckpointQuestion.from_yaml(DEFAULT_CONFIG_PATH)
-    image_name = config.docker.get_image_name()
+    image_name = config.image.get_full_name()
     
     click.echo("📝 Generating question files...")
     question_builder = QuestionBuilder(config)
@@ -130,8 +136,8 @@ def deploy():
         return
     
     config = CheckpointQuestion.from_yaml(DEFAULT_CONFIG_PATH)
-    image_name = config.docker.get_image_name()
-    username = config.docker.registry
+    image_name = config.image.get_full_name()
+    username = config.image.registry
     if not check_docker_auth(username):
         click.echo(f"❌ Docker Hub credentials not found for {username!r}")
         return
