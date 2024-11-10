@@ -1,9 +1,10 @@
 {
   "uuid": "07173abe-b9d9-4b8a-94f6-6b6ded343882",
-  "title": "My Checkpoint",
-  "topic": "Topic",
+  "title": "Git Basics Tutorial",
+  "topic": "Version Control",
   "tags": [
-    "checkpoint"
+    "git",
+    "terminal"
   ],
   "type": "v3",
   "singleVariant": true,
@@ -11,7 +12,7 @@
   "showCorrectAnswer": false,
   "partialCredit": false,
   "workspaceOptions": {
-    "image": "andylizf/checkpoint-my-checkpoint",
+    "image": "andylizf/checkpoint-git-tutorial",
     "port": 8080,
     "home": "/home/student",
     "gradedFiles": [
