@@ -173,7 +173,13 @@
                     setTimeout(() => {
                         currentMission = message.currentMission;
                         updateMissionList();
-                        updateMissionDetails(missions[currentMission], currentMission);
+                        if (currentMission >= missions.length) {
+                            // 所有任务完成
+                            updateMissionDetails(null, currentMission);
+                        } else {
+                            // 还有下一个任务
+                            updateMissionDetails(missions[currentMission], currentMission);
+                        }
                     }, 3000);
                     break;
             }
@@ -209,10 +215,24 @@
         }
 
         function updateMissionDetails(mission, index) {
-            document.getElementById('mission-number').textContent = `Mission ${index + 1}`;
-            document.getElementById('mission-name').textContent = mission.title;
-            document.getElementById('mission-description').textContent = mission.description;
-            document.getElementById('mission-emoji').textContent = index === missions.length - 1 ? '🏆' : '🚩';
+            const missionNumber = document.getElementById('mission-number');
+            const missionName = document.getElementById('mission-name');
+            const missionDescription = document.getElementById('mission-description');
+            const missionEmoji = document.getElementById('mission-emoji');
+
+            if (index >= missions.length) {
+                // 所有任务完成
+                missionEmoji.textContent = '🏆';
+                missionNumber.textContent = 'All Missions Complete!';
+                missionName.textContent = 'Congratulations!';
+                missionDescription.textContent = 'You have completed all missions! You can now exit this workspace and click the "Save & Grade" button on the PrairieLearn question page to record your score.';
+            } else {
+                // 正常显示当前任务
+                missionEmoji.textContent = index === missions.length - 1 ? '🏆' : '🚩';
+                missionNumber.textContent = `Mission ${index + 1}`;
+                missionName.textContent = mission.title;
+                missionDescription.textContent = mission.description;
+            }
         }
 
         function showCongrats() {
@@ -220,6 +240,15 @@
             const congrats = document.getElementById('congrats');
             missionBanner.classList.add('hidden');
             congrats.classList.remove('hidden');
+
+            const isLastMission = currentMission === missions.length - 1;
+            const congratsMessage = document.querySelector('#congrats p');
+            if (isLastMission) {
+                congratsMessage.textContent = 'Congratulations! You have completed all missions! 🎉';
+            } else {
+                congratsMessage.textContent = 'Mission Complete! Ready to move to the next mission.';
+            }
+
             setTimeout(() => {
                 missionBanner.classList.remove('hidden');
                 congrats.classList.add('hidden');
